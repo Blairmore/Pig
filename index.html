@@ -535,11 +535,12 @@
                 const selectedCards = GameUI.getSelectedCards();
                 if (selectedCards.length === 0) return;
 
-                const move = MoveValidator.validate(selectedCards, GameState.lastPlayedMove);
-                if (!move) {
-                    alert("Invalid Move!");
+                const result = MoveValidator.validate(selectedCards, GameState.lastPlayedMove);
+                if (!result.move) {
+                    GameUI.showToast(result.error || "Invalid Move!", 'error');
                     return;
                 }
+                const move = result.move;
 
                 // Check for cutting
                 if (GameState.lastPlayedMove && move.type !== GameState.lastPlayedMove.type) {
@@ -589,7 +590,7 @@
 
             passTurn() {
                 if (GameState.lastPlayedMove === null) {
-                    alert("You cannot pass the first move of a round!");
+                    GameUI.showToast("You cannot pass the first move of a round!", 'error');
                     return;
                 }
                 GameState.passedPlayers.add(GameState.currentPlayerIndex);
@@ -651,56 +652,68 @@
             }
         };
 
-        // --- Validation Logic (Simplified for now) ---
+        // --- Validation Logic (Improved with Feedback) ---
         const MoveValidator = {
             validate(cards, lastMove) {
                 cards.sort((a, b) => a.getPower() - b.getPower());
                 const type = this.getType(cards);
-                if (!type) return null;
+                if (!type) {
+                    return { move: null, error: "Invalid combination! (e.g., sequences must be consecutive and same color is not required)" };
+                }
 
                 const power = cards[cards.length - 1].getPower();
+                const proposedMove = { type, cards, power };
 
-                if (!lastMove) return { type, cards, power };
+                if (!lastMove) return { move: proposedMove, error: null };
 
                 // Rules for matching types
-                if (type === lastMove.type && cards.length === lastMove.cards.length) {
-                    if (power > lastMove.power) return { type, cards, power };
+                if (type === lastMove.type) {
+                    if (cards.length !== lastMove.cards.length) {
+                        return { move: null, error: `Invalid length! You must play ${lastMove.cards.length} cards to match.` };
+                    }
+                    if (power > lastMove.power) {
+                        return { move: proposedMove, error: null };
+                    } else {
+                        // More specific power error
+                        const myHigh = cards[cards.length - 1];
+                        const lastHigh = lastMove.cards[lastMove.cards.length - 1];
+                        return {
+                            move: null,
+                            error: `Your highest card (${myHigh.rank}${myHigh.suit}) is not higher than the table's highest (${lastHigh.rank}${lastHigh.suit})!`
+                        };
+                    }
                 }
 
                 // --- Bomb / Cutting Logic ---
 
-                // 3 pairs of double sequences (3-3-4-4-5-5)
+                // ... (Existing Bomb logic implementation would go here, adapted for new return type)
+                // For brevity in this replace block, I will re-implement the bomb logic structure 
+                // but checking it closely to ensure I don't lose the bomb rules.
+
+                // 3 pairs of double sequences
                 if (type === 'double-sequence-3') {
-                    // Can cut a single 2
-                    if (lastMove.type === 'single' && lastMove.cards[0].rank === '2') return { type, cards, power };
-                    // Can cut a lower 3-pair double sequence
-                    if (lastMove.type === 'double-sequence-3' && power > lastMove.power) return { type, cards, power };
+                    if (lastMove.type === 'single' && lastMove.cards[0].rank === '2') return { move: proposedMove, error: null };
+                    if (lastMove.type === 'double-sequence-3' && power > lastMove.power) return { move: proposedMove, error: null };
                 }
 
                 // Four of a kind
                 if (type === 'four-of-a-kind') {
-                    // Can cut a single 2
-                    if (lastMove.type === 'single' && lastMove.cards[0].rank === '2') return { type, cards, power };
-                    // Can cut a pair of 2s
-                    if (lastMove.type === 'pair' && lastMove.cards[0].rank === '2') return { type, cards, power };
-                    // Can cut a 3-pair double sequence
-                    if (lastMove.type === 'double-sequence-3') return { type, cards, power };
-                    // Can cut lower four-of-a-kind
-                    if (lastMove.type === 'four-of-a-kind' && power > lastMove.power) return { type, cards, power };
+                    if (lastMove.type === 'single' && lastMove.cards[0].rank === '2') return { move: proposedMove, error: null };
+                    if (lastMove.type === 'pair' && lastMove.cards[0].rank === '2') return { move: proposedMove, error: null };
+                    if (lastMove.type === 'double-sequence-3') return { move: proposedMove, error: null };
+                    if (lastMove.type === 'four-of-a-kind' && power > lastMove.power) return { move: proposedMove, error: null };
                 }
 
                 // 4 pairs of double sequences
                 if (type === 'double-sequence-4') {
-                    // Can cut single 2, pair of 2s, OR triplet of 2s
-                    if (lastMove.type === 'single' && lastMove.cards[0].rank === '2') return { type, cards, power };
-                    if (lastMove.type === 'pair' && lastMove.cards[0].rank === '2') return { type, cards, power };
-                    if (lastMove.type === 'triple' && lastMove.cards[0].rank === '2') return { type, cards, power };
-                    // Can cut lower double-sequence-4, four-of-a-kind, or double-sequence-3
-                    if (lastMove.type === 'double-sequence-3' || lastMove.type === 'four-of-a-kind') return { type, cards, power };
-                    if (lastMove.type === 'double-sequence-4' && power > lastMove.power) return { type, cards, power };
+                    if (lastMove.type === 'single' && lastMove.cards[0].rank === '2') return { move: proposedMove, error: null };
+                    if (lastMove.type === 'pair' && lastMove.cards[0].rank === '2') return { move: proposedMove, error: null };
+                    if (lastMove.type === 'triple' && lastMove.cards[0].rank === '2') return { move: proposedMove, error: null };
+                    if (lastMove.type === 'double-sequence-3' || lastMove.type === 'four-of-a-kind') return { move: proposedMove, error: null };
+                    if (lastMove.type === 'double-sequence-4' && power > lastMove.power) return { move: proposedMove, error: null };
                 }
 
-                return null;
+                return { move: null, error: `You cannot play ${type} on top of ${lastMove.type}.` };
             },
 
             getType(cards) {
@@ -720,7 +733,7 @@
                     let isSeq = true;
                     for (let i = 0; i < len - 1; i++) {
                         if (cards[i + 1].rankValue !== cards[i].rankValue + 1) isSeq = false;
-                        if (cards[i].rank === '2' || cards[i + 1].rank === '2') isSeq = false; // 2 cannot be in sequence
+                        if (cards[i].rank === '2' || cards[i + 1].rank === '2') return null; // 2 cannot be in sequence, return null immediately
                     }
                     if (isSeq) return 'sequence';
                 }
@@ -729,11 +742,8 @@
                 if (len >= 6 && len % 2 === 0) {
                     let isDoubleSeq = true;
                     for (let i = 0; i < len; i += 2) {
-                        // Check if current pair is a pair
                         if (cards[i].rank !== cards[i + 1].rank) isDoubleSeq = false;
-                        // Check if consecutive pairs are sequential
                         if (i > 0 && cards[i].rankValue !== cards[i - 2].rankValue + 1) isDoubleSeq = false;
-                        // 2s cannot be in double sequences
                         if (cards[i].rank === '2') isDoubleSeq = false;
                     }
                     if (isDoubleSeq) {
@@ -941,11 +951,16 @@
                 }
             },
 
-            showToast(msg) {
+            showToast(msg, type = 'info') {
                 const container = document.getElementById('toast-container');
                 const toast = document.createElement('div');
                 toast.className = 'toast';
                 toast.textContent = msg;
+
+                if (type === 'error') {
+                    toast.style.background = 'rgba(231, 76, 60, 0.9)'; // Red for errors
+                }
+
                 container.appendChild(toast);
                 // Remove after animation
                 setTimeout(() => {
