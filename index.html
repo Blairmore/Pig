@@ -166,8 +166,10 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
-            padding: 10px;
+            justify-content: flex-start;
+            align-items: flex-start;
+            gap: 0px;
+            padding: 5px;
             color: #1a1a1a;
             user-select: none;
             cursor: pointer;
@@ -189,8 +191,6 @@
 
         .card .suit {
             font-size: 2.5rem;
-            align-self: center;
-            margin-bottom: 20px;
         }
 
         .card.red {
@@ -465,10 +465,10 @@
 
             deal(playerCount) {
                 const hands = Array.from({ length: playerCount }, () => []);
-                let i = 0;
-                while (this.cards.length > 0) {
+                // Deal exactly 13 cards to each player
+                for (let i = 0; i < 13 * playerCount; i++) {
+                    if (this.cards.length === 0) break;
                     hands[i % playerCount].push(this.cards.pop());
-                    i++;
                 }
                 return hands.map(h => h.sort((a, b) => a.getPower() - b.getPower()));
             }
